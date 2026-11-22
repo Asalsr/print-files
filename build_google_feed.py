@@ -6,7 +6,7 @@ def get(u): return urllib.request.urlopen(urllib.request.Request(u, headers=UA))
 
 slugs = sorted(set(re.findall(r'href="/shop/([a-z0-9-]+)"', get("https://asal-sarmadi.com/shop"))) - {"basket", "thanks"})
 cols = ["id", "item_group_id", "title", "description", "link", "image_link", "price", "availability",
-        "condition", "brand", "identifier_exists", "google_product_category", "product_type", "size"]
+        "condition", "brand", "identifier_exists", "google_product_category", "product_type", "size", "shipping_label"]
 rows = []
 for s in slugs:
     h = get(f"https://asal-sarmadi.com/shop/{s}")
@@ -15,7 +15,10 @@ for s in slugs:
         v = o["name"]
         size = v.split(" ")[0]
         tag = re.sub(r"[^a-z0-9]+", "-", v.lower()).strip("-")
-        kind = "framed art print" if "framed" in v.lower() else ("signed art print" if "signed" in v.lower() else ("canvas print" if "canvas" in v.lower() else "art print"))
+        kind = "framed art print" if "framed" in v.lower() else ("signed art print" if "signed" in v.lower() and "unsigned" not in v.lower() else ("canvas print" if "canvas" in v.lower() else "art print"))
+        # Shipping rules in Merchant Center are set per label: Gelato's postage differs for
+        # framed and canvas, and signed prints are posted by Asal, EU only.
+        label = {"framed art print": "framed", "canvas print": "canvas", "signed art print": "signed"}.get(kind, "print")
         rows.append({
             "id": f"{s}-{tag}"[:50], "item_group_id": s,
             "title": f"{prod['name']}, {kind}, " + re.sub(r",? (framed|canvas|signed.*)$", "", v, flags=re.I)[:150],
@@ -24,7 +27,7 @@ for s in slugs:
             "price": f"{o['price']:.2f} {o['priceCurrency']}",
             "availability": "in_stock", "condition": "new", "brand": "Asal Sarmadi",
             "identifier_exists": "no", "google_product_category": "500044",
-            "product_type": "Art prints > " + kind, "size": size,
+            "product_type": "Art prints > " + kind, "size": size, "shipping_label": label,
         })
 with open("feed.tsv", "w", newline="", encoding="utf8") as f:
     w = csv.DictWriter(f, cols, delimiter="\t"); w.writeheader(); w.writerows(rows)
